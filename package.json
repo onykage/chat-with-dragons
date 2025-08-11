@@ -1,0 +1,16 @@
+{
+  "name": "discord-dungeon",
+  "private": true,
+  "packageManager": "pnpm@9.1.0",
+  "scripts": {
+    "build": "tsc -b",
+    "prestart": "pnpm run build",
+    "start": "node ./dist/cli.js",
+    "dev": "tsx src/cli.ts"
+  },
+  "devDependencies": {
+    "@types/node": "^24.2.1",
+    "tsx": "^4.16.2",
+    "typescript": "^5.5.4"
+  }
+}

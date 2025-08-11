@@ -1,0 +1,23 @@
+{
+  "name": "@apps/generator",
+  "version": "0.0.1",
+  "type": "module",
+  "private": true,
+  "bin": {
+    "dungeon-gen": "./dist/cli.js"
+  },
+  "scripts": {
+  "build": "tsc -b",
+  "prestart": "pnpm run build",
+  "start": "node ./dist/cli.js",
+  "dev": "tsx src/cli.ts"
+  },
+  "dependencies": {
+    "@shared/core": "workspace:*",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "tsx": "^4.20.3",
+    "typescript": "^5.5.4"
+  }
+}
