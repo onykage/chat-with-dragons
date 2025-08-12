@@ -1,0 +1,96 @@
+{
+  "projectName": "Discord Game Development",
+  "version": "0.1.0",
+  "lastUpdated": "2024-12-10",
+  "status": "Active Development",
+  "currentIssues": [
+    {
+      "id": "dungeon-spawn-void",
+      "title": "Generated dungeons spawn player in void",
+      "description": "Dungeons load without errors but player spawns in non-walkable area",
+      "priority": "high",
+      "status": "investigating",
+      "debugEndpoint": "/api/dungeons/debug",
+      "affectedFiles": ["app/api/dungeons/[refId]/route.ts", "app/page.tsx (convertGeneratedDungeonToMap function)"]
+    }
+  ],
+  "completedFeatures": [
+    "Discord bot with slash commands and interactions",
+    "Map editor with visual tile painting",
+    "First-person 3D dungeon rendering",
+    "Database integration with auto-migration",
+    "Texture system with sprite sheet support",
+    "Character sheet with stats and inventory",
+    "Chat system with command support",
+    "Minimap with real-time player tracking"
+  ],
+  "environmentVariables": {
+    "required": ["DATABASE_URL", "DISCORD_BOT_TOKEN", "DISCORD_APPLICATION_ID", "DISCORD_PUBLIC_KEY", "MIGRATE_KEY"],
+    "optional": ["DISCORD_GUILD_ID", "POSTGRES_URL", "POSTGRES_PRISMA_URL"]
+  },
+  "databaseSchema": {
+    "tables": [
+      {
+        "name": "maps",
+        "purpose": "Store user-created maps from the editor",
+        "keyColumns": ["id", "name", "tiles", "custom_textures"]
+      },
+      {
+        "name": "generated_dungeons",
+        "purpose": "Store procedurally generated dungeons from Discord bot",
+        "keyColumns": ["id", "guild", "dungeon_number", "tiles"]
+      },
+      {
+        "name": "heroes",
+        "purpose": "Player character data (future expansion)",
+        "keyColumns": ["id", "name", "level", "inventory"]
+      }
+    ],
+    "migrations": [
+      "0001_init.sql - Initial schema",
+      "0002_add_custom_textures.sql - Texture support",
+      "0003_add_generated_dungeons.sql - Dungeon storage"
+    ]
+  },
+  "apiEndpoints": {
+    "game": [
+      "GET /api/maps - List all maps",
+      "POST /api/maps - Create new map",
+      "GET /api/maps/[id] - Get specific map",
+      "PUT /api/maps/[id] - Update map",
+      "DELETE /api/maps/[id] - Delete map"
+    ],
+    "dungeons": [
+      "GET /api/dungeons/[refId] - Load generated dungeon",
+      "GET /api/dungeons/test - Database connectivity test",
+      "GET /api/dungeons/debug - Generation analysis"
+    ],
+    "discord": ["POST /api/interactions - Discord webhook handler"],
+    "admin": ["GET /api/admin/migrate - Run database migrations"]
+  },
+  "keyFiles": {
+    "gameClient": "app/page.tsx",
+    "mapEditor": "app/dashboard/page.tsx",
+    "discordBot": "app/api/interactions/route.ts",
+    "dungeonGeneration": "app/api/dungeons/[refId]/route.ts",
+    "databaseLayer": "lib/db.ts",
+    "migrations": "lib/migrations.ts",
+    "typeDefinitions": "lib/schema.ts"
+  },
+  "nextSteps": [
+    "Debug dungeon generation spawn issue using /api/dungeons/debug",
+    "Fix tile conversion from array format to 2D grid",
+    "Verify player spawn logic finds correct walkable tiles",
+    "Test end-to-end Discord bot to game client workflow",
+    "Implement multiplayer features",
+    "Add combat and quest systems"
+  ],
+  "technicalNotes": {
+    "framework": "Next.js 15 with App Router",
+    "database": "Neon PostgreSQL with auto-migration",
+    "rendering": "HTML5 Canvas with vector graphics",
+    "styling": "Tailwind CSS with Radix UI components",
+    "typeSystem": "TypeScript with strict checking",
+    "deployment": "Vercel-ready with environment variable support"
+  }
+}

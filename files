@@ -1,0 +1,287 @@
+// app/api/maps/route.ts
+import { db } from "@/db"
+import { memoryStore } from "@/memoryStore"
+import { fromMapRow } from "@/utils"
+import { runMigrations } from "@/migrations"
+
+async function ensureMigrationsIfMissing(e: any): Promise<boolean> {
+  try {
+    const msg = String(e?.message || "")
+    const code = String((e && (e.code as string)) || "")
+    const needsMigration =
+      (msg.includes("relation") && msg.includes("does not exist")) ||
+      (msg.includes("column") && msg.includes("does not exist")) ||
+      code === "42P01" || // undefined_table
+      code === "42703"    // undefined_column
+    if (!needsMigration) return false
+    try {
+      await runMigrations()
+      return true
+    } catch (err) {
+      console.warn("Auto-migrate skipped (no DATABASE_URL or failed):", err)
+      return false
+    }
+  } catch (err) {
+    console.warn("ensureMigrationsIfMissing failed:", err)
+    return false
+  }
+}
+
+export async function GET(request: Request) {
+  try {
+    const rows = await db`select id, name, width, height, tiles, custom_textures from maps order by created_at desc limit 100`
+    const maps = rows.map((row) => ({
+      ...fromMapRow(row),
+      customTextures: row.custom_textures || [],
+    }))
+    return Response.json(maps, { status: 200 })
+  } catch (e) {
+    const migrated = await ensureMigrationsIfMissing(e)
+    if (migrated) {
+      try {
+        const rows = await db`select id, name, width, height, tiles, custom_textures from maps order by created_at desc limit 100`
+        const maps = rows.map((row) => ({
+          ...fromMapRow(row),
+          customTextures: row.custom_textures || [],
+        }))
+        return Response.json(maps, { status: 200 })
+      } catch (e2) {
+        console.warn("GET /api/maps retry failed, falling back to memory:", e2)
+      }
+    }
+    console.warn("GET /api/maps DB error, falling back to memory:", e)
+    return Response.json(memoryStore.list().map((row) => ({
+      ...fromMapRow(row),
+      customTextures: row.custom_textures || [],
+    })), { status: 200 })
+  }
+}
+
+export async function POST(request: Request) {
+  const row = await request.json()
+  try {
+    await db`
+      insert into maps (id, name, width, height, tiles, custom_textures)
+      values (${row.id}, ${row.name}, ${row.width}, ${row.height}, ${db.json(row.tiles)}, ${db.json(
+        row.custom_textures || [],
+      )})
+    `
+    return Response.json({ ...fromMapRow(row), customTextures: row.custom_textures || [] }, { status: 201 })
+  } catch (e) {
+    const migrated = await ensureMigrationsIfMissing(e)
+    if (migrated) {
+      try {
+        await db`
+          insert into maps (id, name, width, height, tiles, custom_textures)
+          values (${row.id}, ${row.name}, ${row.width}, ${row.height}, ${db.json(row.tiles)}, ${db.json(
+          row.custom_textures || [],
+        )})
+        `
+        return Response.json({ ...fromMapRow(row), customTextures: row.custom_textures || [] }, { status: 201 })
+      } catch (e2) {
+        console.warn("POST /api/maps retry failed, saving to memory:", e2)
+      }
+    } else {
+      console.warn("POST /api/maps DB error, saving to memory:", e)
+    }
+    memoryStore.save(row)
+    return Response.json({ ...fromMapRow(row), customTextures: row.custom_textures || [] }, { status: 201 })
+  }
+}
+
+// app/api/maps/[id]/route.ts
+import { db } from "@/db"
+import { memoryStore } from "@/memoryStore"
+import { fromMapRow } from "@/utils"
+import { runMigrations } from "@/migrations"
+
+async function ensureMigrationsIfMissing(e: any): Promise<boolean> {
+  try {
+    const msg = String(e?.message || "")
+    const code = String((e && (e.code as string)) || "")
+    const needsMigration =
+      (msg.includes("relation") && msg.includes("does not exist")) ||
+      (msg.includes("column") && msg.includes("does not exist")) ||
+      code === "42P01" || code === "42703"
+    if (!needsMigration) return false
+    try {
+      await runMigrations()
+      return true
+    } catch (err) {
+      console.warn("Auto-migrate skipped (no DATABASE_URL or failed):", err)
+      return false
+    }
+  } catch (err) {
+    console.warn("ensureMigrationsIfMissing failed:", err)
+    return false
+  }
+}
+
+export async function GET(request: Request) {
+  const id = request.url.split("/").pop()
+  try {
+    const row = await db`select id, name, width, height, tiles, custom_textures from maps where id = ${id}`
+    if (row.length === 0) {
+      throw new Error("Map not found")
+    }
+    return Response.json({ ...fromMapRow(row[0]), customTextures: row[0].custom_textures || [] }, { status: 200 })
+  } catch (e) {
+    const migrated = await ensureMigrationsIfMissing(e)
+    if (migrated) {
+      try {
+        const row = await db`select id, name, width, height, tiles, custom_textures from maps where id = ${id}`
+        if (row.length === 0) {
+          throw new Error("Map not found")
+        }
+        return Response.json({ ...fromMapRow(row[0]), customTextures: row[0].custom_textures || [] }, { status: 200 })
+      } catch (e2) {
+        console.warn("GET /api/maps/[id] retry failed, falling back to memory:", e2)
+      }
+    }
+    console.warn("GET /api/maps/[id] DB error, falling back to memory:", e)
+    const map = memoryStore.get(id)
+    if (!map) {
+      throw new Error("Map not found")
+    }
+    return Response.json({ ...fromMapRow(map), customTextures: map.custom_textures || [] }, { status: 200 })
+  }
+}
+
+export async function PUT(request: Request) {
+  const id = request.url.split("/").pop()
+  const row = await request.json()
+  try {
+    await db`
+      update maps set name = ${row.name}, width = ${row.width}, height = ${row.height}, tiles = ${db.json(row.tiles)}, custom_textures = ${db.json(row.custom_textures || [])}
+      where id = ${id}
+    `
+    return Response.json({ ...fromMapRow(row), customTextures: row.custom_textures || [] }, { status: 200 })
+  } catch (e) {
+    const migrated = await ensureMigrationsIfMissing(e)
+    if (migrated) {
+      try {
+        await db`
+          update maps set name = ${row.name}, width = ${row.width}, height = ${row.height}, tiles = ${db.json(row.tiles)}, custom_textures = ${db.json(row.custom_textures || [])}
+          where id = ${id}
+        `
+        return Response.json({ ...fromMapRow(row), customTextures: row.custom_textures || [] }, { status: 200 })
+      } catch (e2) {
+        console.warn("PUT /api/maps/[id] retry failed, saving to memory:", e2)
+      }
+    } else {
+      console.warn("PUT /api/maps/[id] DB error, saving to memory:", e)
+    }
+    memoryStore.save(row)
+    return Response.json({ ...fromMapRow(row), customTextures: row.custom_textures || [] }, { status: 200 })
+  }
+}
+
+export async function DELETE(request: Request) {
+  const id = request.url.split("/").pop()
+  try {
+    await db`delete from maps where id = ${id}`
+    return Response.json({ message: "Map deleted" }, { status: 200 })
+  } catch (e) {
+    const migrated = await ensureMigrationsIfMissing(e)
+    if (migrated) {
+      try {
+        await db`delete from maps where id = ${id}`
+        return Response.json({ message: "Map deleted" }, { status: 200 })
+      } catch (e2) {
+        console.warn("DELETE /api/maps/[id] retry failed, removing from memory:", e2)
+      }
+    } else {
+      console.warn("DELETE /api/maps/[id] DB error, removing from memory:", e)
+    }
+    memoryStore.remove(id)
+    return Response.json({ message: "Map deleted" }, { status: 200 })
+  }
+}
+
+// app/dashboard/page.tsx
+import { generateWizardryFloor1 } from "@/lib/sample-maps"
+import { useState, useEffect } from "react"
+import { MapData } from "@/types"
+import { fetchMaps } from "@/api"
+
+const DashboardPage = () => {
+  const [maps, setMaps] = useState<MapData[]>([])
+  const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [current, setCurrent] = useState<MapData | null>(null)
+  const [customTextures, setCustomTextures] = useState<string[]>([])
+
+  async function loadMaps() {
+    try {
+      const res = await fetch("/api/maps", { cache: "no-store" })
+      if (!res.ok) {
+        const text = await res.text().catch(() => "")
+        console.warn("GET /api/maps failed:", res.status, text)
+        // Fallback: create a sample map and retry the list
+        const sample = generateWizardryFloor1()
+        const create = await fetch("/api/maps", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify(sample),
+        })
+        if (!create.ok) {
+          const ctext = await create.text().catch(() => "")
+          throw new Error(`Create sample map failed: ${create.status} ${ctext}`)
+        }
+        // After creating, read the list again
+        const res2 = await fetch("/api/maps", { cache: "no-store" })
+        if (!res2.ok) {
+          const t2 = await res2.text().catch(() => "")
+          throw new Error(`GET /api/maps after create failed: ${res2.status} ${t2}`)
+        }
+        const data = (await res2.json()) as MapData[]
+        setMaps(data)
+        if (data[0] && !selectedId) {
+          setSelectedId(data[0].id)
+          setCurrent(data[0])
+          if (data[0].customTextures) setCustomTextures(data[0].customTextures)
+        }
+        return
+      }
+
+      const data = (await res.json()) as MapData[]
+      if (data.length === 0) {
+        // Seed with sample if list is empty
+        const sample = generateWizardryFloor1()
+        const create = await fetch("/api/maps", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify(sample),
+        })
+        if (create.ok) {
+          const created = (await create.json()) as MapData
+          setMaps([created])
+          setSelectedId(created.id)
+          setCurrent(created)
+          if (created.customTextures) setCustomTextures(created.customTextures)
+          return
+        }
+      }
+
+      setMaps(data)
+      if (data[0] && !selectedId) {
+        setSelectedId(data[0].id)
+        setCurrent(data[0])
+        if (data[0].customTextures) setCustomTextures(data[0].customTextures)
+      }
+    } catch (error) {
+      console.error("Failed to load maps:", error)
+    }
+  }
+
+  useEffect(() => {
+    loadMaps()
+  }, [])
+
+  return (
+    <div>
+      {/* Dashboard content here */}
+    </div>
+  )
+}
+
+export default DashboardPage
